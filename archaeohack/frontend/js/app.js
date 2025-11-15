@@ -1,3 +1,40 @@
+let hieroglyphDatabase = [];
+let dataLoaded = false;
+
+// Load hieroglyph data from JSON file
+async function loadHieroglyphData() {
+    try {
+        const response = await fetch('gardiner_hieroglyphs_with_unicode_hex.json');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        
+        // Filter out entries with no description (incomplete variants)
+        hieroglyphDatabase = data.filter(h => h.description !== null && h.description !== "");
+        
+        dataLoaded = true;
+        console.log(`✓ Loaded ${hieroglyphDatabase.length} hieroglyphs successfully`);
+        
+        // If we're already in practice mode when data loads, generate a prompt
+        if (currentMode === 'practice') {
+            generateNewPrompt();
+        }
+    } catch (error) {
+        console.error('Error loading hieroglyph data:', error);
+        console.error('Make sure data/gardiner_hieroglyphs.json exists in your project');
+        
+        // Show error to user
+        const promptText = document.getElementById('promptText');
+        if (promptText) {
+            promptText.textContent = 'Error loading hieroglyph database. Check console for details.';
+            promptText.style.color = 'red';
+        }
+    }
+}
+// Call this when the page loads
+window.addEventListener('load', loadHieroglyphData);
+
 // ============================================
 // CANVAS SETUP AND DRAWING FUNCTIONALITY
 // ============================================
@@ -56,10 +93,12 @@ canvas.addEventListener('touchend', stopDrawing);
 // ============================================
 
 // Stroke width control
+
+/*Stroke width control removed as of now
 document.getElementById('strokeWidth').addEventListener('input', (e) => {
     strokeWidth = e.target.value;
     document.getElementById('strokeWidthValue').textContent = strokeWidth + 'px';
-});
+});*/
 
 // Clear canvas button
 document.getElementById('clearBtn').addEventListener('click', () => {
@@ -107,19 +146,39 @@ function switchMode(mode) {
 // ============================================
 
 function generateNewPrompt() {
-    // TODO: This will be connected to your ML model's dataset
-    // For now, using placeholder prompts
-    const samplePrompts = [
-        { meaning: "water", phonetic: "n" },
-        { meaning: "mouth", phonetic: "r" },
-        { meaning: "reed leaf", phonetic: "i" },
-        { meaning: "vulture", phonetic: "a" },
-        { meaning: "house", phonetic: "pr" }
-    ];
+    // Check if data is loaded yet
+    if (!dataLoaded || hieroglyphDatabase.length === 0) {
+        document.getElementById('promptText').textContent = 'Loading hieroglyphs...';
+        console.log('Waiting for hieroglyph data to load...');
+        
+        // Try again in a moment
+        setTimeout(generateNewPrompt, 500);
+        return;
+    }
     
-    currentPrompt = samplePrompts[Math.floor(Math.random() * samplePrompts.length)];
+    // Randomly select a hieroglyph from the database
+    const randomIndex = Math.floor(Math.random() * hieroglyphDatabase.length);
+    currentPrompt = hieroglyphDatabase[randomIndex];
+    
+    // Display the prompt using description as the main prompt
     document.getElementById('promptText').textContent = 
-        `"${currentPrompt.meaning}" (phonetic: ${currentPrompt.phonetic})`;
+        `"${currentPrompt.description}"`;
+    
+    console.log(`Generated prompt: ${currentPrompt.description} (${currentPrompt.gardiner_num})`);
+}
+// Find a hieroglyph by its Gardiner code (useful when ML model returns "A1", "N35", etc.)
+function findHieroglyphByCode(code) {
+    return hieroglyphDatabase.find(h => h.gardiner_num === code) || null;
+}
+
+// Get the image path for a hieroglyph
+function getHieroglyphImagePath(code) {
+    return `images/hieroglyphs/${code}.png`;
+}
+
+// Format Unicode hex to standard format
+function formatUnicodePoint(hex) {
+    return `U+${hex.toUpperCase()}`;
 }
 
 // ============================================
@@ -127,19 +186,31 @@ function generateNewPrompt() {
 // ============================================
 
 document.getElementById('submitBtn').addEventListener('click', async () => {
-    // Get canvas image data
-    const imageData = canvas.toDataURL('image/png');
+    // Check if data is loaded
+    if (!dataLoaded || hieroglyphDatabase.length === 0) {
+        document.getElementById('resultsContent').innerHTML = 
+            '<p style="color: red; text-align: center;">Hieroglyph database still loading. Please wait a moment and try again.</p>';
+        return;
+    }
     
+    // Get canvas image data
+    const imageData = canvas.toDataURL('image/png');    
     // Show loading state
     showLoading();
     
-    // TODO: Send to ML model for classification
-    // For now, simulate API call with timeout
+    // Simulate ML model processing with timeout
+    // When you add your real ML model, replace this setTimeout with your actual API call
     setTimeout(() => {
-        if (currentMode === 'identify') {
-            displayIdentifyResults(getMockResults());
-        } else {
-            displayPracticeResults(getMockPracticeResults());
+        try {
+            if (currentMode === 'identify') {
+                displayIdentifyResults(getMockResults());
+            } else {
+                displayPracticeResults(getMockPracticeResults());
+            }
+        } catch (error) {
+            console.error('Error displaying results:', error);
+            document.getElementById('resultsContent').innerHTML = 
+                '<p style="color: red; text-align: center;">Error generating results. Check console for details.</p>';
         }
     }, 1000);
 });
@@ -259,25 +330,48 @@ function nextPractice() {
 // ============================================
 
 function getMockResults() {
+    // Safety check
+    if (!dataLoaded || hieroglyphDatabase.length === 0) {
+        throw new Error('Hieroglyph database not loaded');
+    }
+    
+    // Pick a random hieroglyph from database
+    const hieroglyph = hieroglyphDatabase[Math.floor(Math.random() * hieroglyphDatabase.length)];
+    
     return {
-        sign: "𓈖 (water)",
-        phonetic: "n",
-        meaning: "water, in, of",
-        unicode: "U+13216",
-        glyph: "𓈖",
-        confidence: 87,
-        additionalInfo: "Common phonetic sign, also used as determinative for water-related words"
+        sign: `${hieroglyph.hieroglyph} (${hieroglyph.description})`,
+        phonetic: hieroglyph.details || "See details",
+        meaning: hieroglyph.description,
+        unicode: formatUnicodePoint(hieroglyph.unicode_hex),
+        glyph: hieroglyph.hieroglyph,
+        confidence: Math.floor(Math.random() * 20) + 80, // Random 80-100%
+        additionalInfo: hieroglyph.details
     };
 }
 
 function getMockPracticeResults() {
-    const isCorrect = Math.random() > 0.5; // Random for demo
+    // Safety check
+    if (!dataLoaded || hieroglyphDatabase.length === 0) {
+        throw new Error('Hieroglyph database not loaded');
+    }
+    
+    // For demo: randomly determine if answer is correct
+    const isCorrect = Math.random() > 0.5;
+    
+    let drawnHieroglyph = currentPrompt;
+    if (!isCorrect) {
+        // Pick a different random hieroglyph
+        do {
+            drawnHieroglyph = hieroglyphDatabase[Math.floor(Math.random() * hieroglyphDatabase.length)];
+        } while (drawnHieroglyph.gardiner_num === currentPrompt.gardiner_num);
+    }
+    
     return {
         correct: isCorrect,
-        drawnSign: isCorrect ? currentPrompt.meaning : "vulture",
+        drawnSign: drawnHieroglyph.description,
         correctAnswer: {
-            sign: currentPrompt.meaning,
-            glyph: "𓈖"
+            sign: currentPrompt.description,
+            glyph: currentPrompt.hieroglyph
         }
     };
 }
