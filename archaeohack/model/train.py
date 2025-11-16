@@ -19,11 +19,11 @@ def train_model(data_path: str, model_type: str = 'yolo11s-cls', epochs: int = 5
     model = YOLO(model_type)
 
     # Start training
-    model.train(name = '1759', data=data_path, epochs=epochs, lrf = 0.001, batch=batch_size, imgsz=img_size, device="mps")
+    model.train(name = '1759', data=data_path, epochs=epochs, lrf = 0.001, batch=batch_size, imgsz=img_size, device="mps", patience=8)
     model.export(imgsz = 200)
 
 if __name__ == "__main__":
     
     # Example usage
-    train_model(data_path=DATA_PATH, model_type='yolo11s-cls', epochs=20, batch_size=8, img_size=200)
+    train_model(data_path=DATA_PATH, model_type='yolo11s-cls', epochs=40, batch_size=8, img_size=200)
     

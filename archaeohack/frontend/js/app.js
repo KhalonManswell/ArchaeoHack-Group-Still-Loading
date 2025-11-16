@@ -150,26 +150,29 @@ function generateNewPrompt() {
         setTimeout(generateNewPrompt, 500);
         return;
     }
-    
-    // Filter to only priority hieroglyphs that match what the model was trained on
-    const priorityHieroglyphs = hieroglyphDatabase.filter(h => h.is_priority === true);
-    
-    if (priorityHieroglyphs.length === 0) {
-        console.error('No priority hieroglyphs found in database');
-        document.getElementById('promptText').textContent = 'Error: No training hieroglyphs available';
+
+    // Use all hieroglyphs (removed priority filter)
+    const availableHieroglyphs = hieroglyphDatabase;
+
+    if (availableHieroglyphs.length === 0) {
+        console.error('No hieroglyphs found in database');
+        document.getElementById('promptText').textContent = 'Error: No hieroglyphs available';
         return;
     }
+}
+
+// Randomly select a hieroglyph
+const randomIndex = Math.floor(Math.random() * availableHieroglyphs.length);
+currentPrompt = availableHieroglyphs[randomIndex];
     
-    // Randomly select a hieroglyph from priority ones
-    const randomIndex = Math.floor(Math.random() * priorityHieroglyphs.length);
-    currentPrompt = priorityHieroglyphs[randomIndex];
+
     
     // Display the prompt using description as the main prompt
     document.getElementById('promptText').textContent = 
         `"${currentPrompt.description}"`;
     
     console.log(`Generated prompt: ${currentPrompt.description} (${currentPrompt.gardiner_num})`);
-}
+
 
 // ============================================
 // SUBMIT DRAWING FOR CLASSIFICATION
