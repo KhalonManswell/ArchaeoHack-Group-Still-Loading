@@ -8,6 +8,7 @@ import json
 import numpy as np
 import cv2
 import torch
+import os
 
 from PIL import ImageDraw
 
@@ -105,6 +106,11 @@ def save_debug_image(image, filename):
     debug_dir = "debug_images"
     os.makedirs(debug_dir, exist_ok=True)
     image_path = os.path.join(debug_dir, filename)
+    
+    # Convert numpy array to PIL Image if needed
+    if isinstance(image, np.ndarray):
+        image = Image.fromarray(image)
+    
     image.save(image_path)
     print(f"✓ Debug image saved: {image_path}")
     return image_path
@@ -112,7 +118,7 @@ def save_debug_image(image, filename):
 def preprocess_image(image_base64):
     """
     Convert base64 image from canvas to format expected by YOLO
-    Matches the preprocessing from your training script
+    With improved binary conversion to avoid blank images
     """
     try:
         # Remove data URL prefix if present
@@ -150,10 +156,76 @@ def preprocess_image(image_base64):
         
         print(f"✓ Grayscale image: {gray.shape}, range: [{gray.min()}-{gray.max()}]")
         
-        # Apply threshold to create binary image (matching your augment_pic function)
-        print("🔄 Applying binary threshold...")
-        _, binary = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
-        print(f"✓ Binary image: {binary.shape}, unique values: {np.unique(binary)}")
+        # ===========================
+        # IMPROVED BINARY CONVERSION - FIX FOR BLANK IMAGES
+        # ===========================
+        print("🔄 Applying adaptive binary threshold...")
+        
+        # Method 1: Check if image is already high contrast
+        unique_vals = np.unique(gray)
+        print(f"✓ Unique values in grayscale: {unique_vals}")
+        
+        # If image has few unique values, it might already be binary
+        if len(unique_vals) <= 3:
+            print("⚠ Image appears to be already binary, using as-is")
+            binary = gray
+        else:
+            # Method 2: Use adaptive threshold instead of fixed threshold
+            # This handles different lighting conditions better
+            binary_adaptive = cv2.adaptiveThreshold(
+                gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                cv2.THRESH_BINARY, 11, 2
+            )
+            
+            # Method 3: Try OTSU automatic threshold
+            _, binary_otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            
+            # Method 4: Try different fixed thresholds
+            _, binary_low = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY)
+            _, binary_medium = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
+            _, binary_high = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
+            
+            # Check which threshold result has content (not all white or all black)
+            binaries = {
+                'adaptive': binary_adaptive,
+                'otsu': binary_otsu,
+                'low_100': binary_low,
+                'medium_150': binary_medium,
+                'high_200': binary_high
+            }
+            
+            # Select the best binary result (neither all white nor all black)
+            best_binary = None
+            best_score = -1
+            
+            for name, bin_img in binaries.items():
+                white_pixels = np.sum(bin_img == 255)
+                black_pixels = np.sum(bin_img == 0)
+                total_pixels = bin_img.size
+                
+                # Calculate score for non-extreme images (neither all white nor all black)
+                if black_pixels > 0.01 * total_pixels and white_pixels > 0.01 * total_pixels:
+                    score = min(black_pixels, white_pixels)  # Balance black and white pixels
+                    if score > best_score:
+                        best_score = score
+                        best_binary = bin_img
+                        print(f"✓ Candidate: {name} - white: {white_pixels}, black: {black_pixels}")
+            
+            if best_binary is not None:
+                binary = best_binary
+                print(f"✓ Selected binary method with good contrast")
+            else:
+                # If all methods are problematic, use adaptive threshold as default
+                binary = binary_adaptive
+                print("⚠ Using adaptive threshold as fallback")
+        
+        print(f"✓ Final binary image: {binary.shape}, unique values: {np.unique(binary)}")
+        print(f"✓ White pixels: {np.sum(binary == 255)}, Black pixels: {np.sum(binary == 0)}")
+        
+        # Check if image is still blank
+        if np.sum(binary == 0) < 100:  # If too few black pixels
+            print("⚠ Warning: Binary image has very few black pixels - inverting")
+            binary = cv2.bitwise_not(binary)  # Invert image
         
         # Resize to 200x200 (matching your training)
         print("🔄 Resizing to 200x200...")
@@ -175,8 +247,13 @@ def preprocess_image(image_base64):
         # ===========================
         save_debug_image(original_image, "01_original.png")
         save_debug_image(Image.fromarray(gray), "02_grayscale.png")
-        save_debug_image(Image.fromarray(binary), "03_binary.png")
+        save_debug_image(Image.fromarray(binary), "03_binary_fixed.png")
         save_debug_image(pil_image, "04_final_preprocessed.png")
+        
+        # Save all attempted binary methods for comparison
+        if 'binaries' in locals():
+            for name, bin_img in binaries.items():
+                save_debug_image(Image.fromarray(bin_img), f"03_binary_{name}.png")
         
         # Print image statistics for verification
         final_array = np.array(pil_image)
@@ -185,7 +262,6 @@ def preprocess_image(image_base64):
         print(f"   - Data type: {final_array.dtype}")
         print(f"   - Value range: [{final_array.min()} - {final_array.max()}]")
         print(f"   - Mean intensity: {final_array.mean():.2f}")
-        print(f"   - Unique values: {np.unique(final_array)}")
         
         return pil_image
         
@@ -196,7 +272,92 @@ def preprocess_image(image_base64):
         return None
 
 # ===========================
-# NEW VERIFICATION ENDPOINT
+# BINARY DEBUGGING ENDPOINT
+# ===========================
+
+@app.route('/debug_binary', methods=['POST'])
+def debug_binary_conversion():
+    """
+    Special endpoint to debug binary conversion issues
+    Tests multiple binary methods and returns detailed analysis
+    """
+    try:
+        data = request.get_json()
+        if not data or 'image' not in data:
+            return jsonify({'error': 'No image provided'}), 400
+        
+        image_base64 = data['image']
+        if ',' in image_base64:
+            image_base64 = image_base64.split(',')[1]
+        
+        # Decode image
+        image_bytes = base64.b64decode(image_base64)
+        original_image = Image.open(io.BytesIO(image_bytes))
+        
+        # Convert to grayscale
+        gray = np.array(original_image.convert('L'))
+        
+        # Try multiple binary methods
+        methods = {}
+        
+        # 1. Fixed thresholds
+        thresholds = [50, 100, 128, 150, 200]
+        for thresh in thresholds:
+            _, binary = cv2.threshold(gray, thresh, 255, cv2.THRESH_BINARY)
+            methods[f'fixed_{thresh}'] = binary
+        
+        # 2. Adaptive threshold
+        binary_adaptive = cv2.adaptiveThreshold(
+            gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+            cv2.THRESH_BINARY, 11, 2
+        )
+        methods['adaptive_gaussian'] = binary_adaptive
+        
+        # 3. OTSU
+        _, binary_otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        methods['otsu'] = binary_otsu
+        
+        # Analyze results
+        results = []
+        for name, binary_img in methods.items():
+            white_pixels = np.sum(binary_img == 255)
+            black_pixels = np.sum(binary_img == 0)
+            total_pixels = binary_img.size
+            
+            results.append({
+                'method': name,
+                'white_pixels': int(white_pixels),
+                'black_pixels': int(black_pixels),
+                'white_percentage': float(white_pixels / total_pixels * 100),
+                'black_percentage': float(black_pixels / total_pixels * 100),
+                'is_balanced': (10 < (black_pixels / total_pixels * 100) < 90)
+            })
+        
+        # Convert to base64 for display
+        method_images = {}
+        for name, binary_img in methods.items():
+            pil_img = Image.fromarray(binary_img)
+            buffered = io.BytesIO()
+            pil_img.save(buffered, format="PNG")
+            method_images[name] = base64.b64encode(buffered.getvalue()).decode()
+        
+        return jsonify({
+            'grayscale_stats': {
+                'min': int(gray.min()),
+                'max': int(gray.max()),
+                'mean': float(gray.mean()),
+                'std': float(gray.std())
+            },
+            'binary_results': results,
+            'method_images': method_images,
+            'recommendation': 'Use method with balanced black/white pixels (10%-90%)'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ===========================
+# VERIFICATION ENDPOINT
 # ===========================
 
 @app.route('/verify_preprocessing', methods=['POST'])
@@ -258,18 +419,54 @@ def verify_preprocessing():
             'mean_intensity': float(gray.mean())
         })
         
-        # Step 4: Binary threshold
-        _, binary = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
+        # Step 4: Binary threshold (using improved method)
+        # Try multiple binary methods and select the best one
+        binary_methods = {}
+        
+        # Fixed thresholds
+        thresholds = [100, 128, 150, 200]
+        for thresh in thresholds:
+            _, binary = cv2.threshold(gray, thresh, 255, cv2.THRESH_BINARY)
+            binary_methods[f'fixed_{thresh}'] = binary
+        
+        # Adaptive threshold
+        binary_adaptive = cv2.adaptiveThreshold(
+            gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+            cv2.THRESH_BINARY, 11, 2
+        )
+        binary_methods['adaptive'] = binary_adaptive
+        
+        # OTSU
+        _, binary_otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        binary_methods['otsu'] = binary_otsu
+        
+        # Select best binary result
+        best_binary = None
+        best_method = 'adaptive'
+        for name, bin_img in binary_methods.items():
+            white_pixels = np.sum(bin_img == 255)
+            black_pixels = np.sum(bin_img == 0)
+            total_pixels = bin_img.size
+            
+            if black_pixels > 0.01 * total_pixels and white_pixels > 0.01 * total_pixels:
+                best_binary = bin_img
+                best_method = name
+                break
+        
+        if best_binary is None:
+            best_binary = binary_methods['adaptive']
+        
         steps_info.append({
-            'step': 'Binary Threshold',
-            'shape': binary.shape,
-            'unique_values': [int(x) for x in np.unique(binary)],
-            'white_pixels': int(np.sum(binary == 255)),
-            'black_pixels': int(np.sum(binary == 0))
+            'step': 'Binary Threshold (Improved)',
+            'shape': best_binary.shape,
+            'unique_values': [int(x) for x in np.unique(best_binary)],
+            'white_pixels': int(np.sum(best_binary == 255)),
+            'black_pixels': int(np.sum(best_binary == 0)),
+            'method_used': best_method
         })
         
         # Step 5: Resized
-        resized = cv2.resize(binary, (200, 200))
+        resized = cv2.resize(best_binary, (200, 200))
         steps_info.append({
             'step': 'Resized 200x200',
             'shape': resized.shape,
@@ -299,7 +496,8 @@ def verify_preprocessing():
             'summary': {
                 'original_size': original_image.size,
                 'final_size': final_pil.size,
-                'processing_complete': True
+                'processing_complete': True,
+                'binary_method_used': best_method
             }
         })
         
