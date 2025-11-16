@@ -160,12 +160,10 @@ function generateNewPrompt() {
         return;
     }
 }
-
-// Randomly select a hieroglyph
-const randomIndex = Math.floor(Math.random() * availableHieroglyphs.length);
-currentPrompt = availableHieroglyphs[randomIndex];
+    // Randomly select a hieroglyph
+    const randomIndex = Math.floor(Math.random() * availableHieroglyphs.length);
+    currentPrompt = availableHieroglyphs[randomIndex];
     
-
     
     // Display the prompt using description as the main prompt
     document.getElementById('promptText').textContent = 

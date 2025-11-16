@@ -2,16 +2,13 @@
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+packages = []
+
 [project]
-name = "egyptian-hieroglyphs-classifier"
-version = "1.0"
-description = "Classifies Egyptian hieroglyphs using machine learning."
-requires-python = ">=3.8"
-authors = [
-  { name="Khalon Manswell", email="khalonmanswell@gmail.com"}
-  { name="", email=""}
-  { name="", email=""}
-]
+
+
+
 dependencies = [
   "flask>=2.0.0",
   "flask-cors>=4.0.0",
@@ -23,6 +20,15 @@ dependencies = [
   "tqdm>=4.60.0",
   "ultralytics>=8.0.0",
   "opencv-python>=4.5.0",
+]
+
+name = "egyptian-hieroglyphs-classifier"
+version = "1.0"
+description = "Classifies Egyptian hieroglyphs using machine learning."
+requires-python = ">=3.8"
+authors = [
+  { name="Khalon Manswell", email="khalonmanswell@gmail.com"},
+  { name="Name", email="email@gmail.com"}
 ]
 
 [project.urls]

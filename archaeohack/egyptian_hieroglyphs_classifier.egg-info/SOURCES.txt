@@ -1,0 +1,6 @@
+pyproject.toml
+egyptian_hieroglyphs_classifier.egg-info/PKG-INFO
+egyptian_hieroglyphs_classifier.egg-info/SOURCES.txt
+egyptian_hieroglyphs_classifier.egg-info/dependency_links.txt
+egyptian_hieroglyphs_classifier.egg-info/requires.txt
+egyptian_hieroglyphs_classifier.egg-info/top_level.txt
