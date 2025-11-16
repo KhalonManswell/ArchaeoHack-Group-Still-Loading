@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from ultralytics import YOLO
 from PIL import Image
+import os
 import base64
 import io
 import json
@@ -55,13 +56,37 @@ def load_model():
     
     try:
         # Load YOLO model - try different possible paths
+        """""
         model_paths = [
             '../model/best.pt',
             '../model/runs/classify/1759/weights/best.pt',
             '../model/1759/weights/best.pt',
             'best.pt'
         ]
+        """
+
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        ROOT_DIR = os.path.dirname(BASE_DIR)
+        MODEL_PATH = os.path.join(ROOT_DIR, "model", "yolo11s-cls.pt")
+
+        print("BASE_DIR:", BASE_DIR)
+        print("ROOT_DIR:", ROOT_DIR)
+        print("MODEL_PATH:", MODEL_PATH)
+
+
+        if not os.path.exists(MODEL_PATH):
+            raise FileNotFoundError(f"Model file not found at: {MODEL_PATH}")
+        else:
+            print(f"[INFO] Loading model from: {MODEL_PATH}")
+
+        try:
+            print(f"Trying to load model from: {MODEL_PATH}")
+            model = YOLO(MODEL_PATH)
+            print(f"Model loaded successfully from {MODEL_PATH}")  
+        except Exception as e:
+            raise Exception(f"Failed to load model from {MODEL_PATH}: {e}")
         
+        """""
         model_loaded = False
         for path in model_paths:
             try:
@@ -75,7 +100,8 @@ def load_model():
         
         if not model_loaded:
             raise Exception("Could not load model from any path")
-        
+        """
+
         # Get class names from the model
         # YOLO classification models store class names in model.names
         if hasattr(model, 'names'):

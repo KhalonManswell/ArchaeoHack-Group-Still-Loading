@@ -1,7 +1,8 @@
 TRAIN_RATIO = 0.8
+AUGMENTATIONS_PER_TRAIN = 15
 
-PROCESSED_PATH = r'D:\vscode_Projects\ArchaeoHack-Group-Still-Loading\archaeohack\processed_data'
-DATA_PATH = r'D:\vscode_Projects\ArchaeoHack-Group-Still-Loading\archaeohack\data\me-sign-examples-pjb'
+PROCESSED_PATH = r'/Users/khalonmanswell/Documents/GitHub/ArchaeoHack-Group-Still-Loading/archaeohack/processed_data'
+DATA_PATH = r'/Users/khalonmanswell/Documents/GitHub/ArchaeoHack-Group-Still-Loading/archaeohack/data/utf-pngs'
 
 import cv2
 import os
@@ -28,8 +29,8 @@ def split_data(data_path):
                 continue
 
             filename = file
-            parent_dir = os.path.basename(root)
-            print(f"Found file: {filename} in directory: {parent_dir}")
+            label = os.path.splitext(filename)[0] 
+            print(f"Found file: {filename} → class: {label}")
 
             src_path = os.path.join(root, file)
             img = cv2.imread(src_path,cv2.IMREAD_GRAYSCALE)
@@ -46,20 +47,66 @@ def split_data(data_path):
                 subset = 'train'
             else:
                 subset = 'val'
-            
-            #duplicate if train
-            augimg = augment_pic(img)
-            if subset == 'train':
-                augimg2 = augment_pic(img)
 
 
-            out_dir = os.path.join(PROCESSED_PATH, subset, parent_dir)
-            try:
-                os.makedirs(out_dir, exist_ok=True)
-            except Exception as e:
-                print(f"Error creating directory {out_dir}: {e}")
-                continue
 
+
+    SOURCE_DIR = "/Users/khalonmanswell/Documents/GitHub/ArchaeoHack-Group-Still-Loading/archaeohack/data/utf-pngs"
+    PROCESSED_PATH = "/Users/khalonmanswell/Documents/GitHub/ArchaeoHack-Group-Still-Loading/archaeohack/processed_data"
+
+    train_root = os.path.join(PROCESSED_PATH, "train")
+    val_root   = os.path.join(PROCESSED_PATH, "val")
+    os.makedirs(train_root, exist_ok=True)
+    os.makedirs(val_root, exist_ok=True)
+
+# List all png files
+    images = [f for f in os.listdir(SOURCE_DIR) if f.endswith(".png")]
+
+    for filename in images:
+        label = os.path.splitext(filename)[0]  # "A1.png" -> "A1"
+
+        # Create class folders
+        train_class_dir = os.path.join(train_root, label)
+        val_class_dir   = os.path.join(val_root, label)
+        os.makedirs(train_class_dir, exist_ok=True)
+        os.makedirs(val_class_dir, exist_ok=True)
+
+        img_path = os.path.join(SOURCE_DIR, filename)
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+        if img is None:
+            print(f"Skipping unreadable image: {filename}")
+            continue
+
+        # ------------------------
+        # 1 image → validation
+        # ------------------------
+        if img is not None:
+            val_out_dir = os.path.join(val_root, label)
+            os.makedirs(val_out_dir, exist_ok=True)   # create folder **here**
+    
+            val_img = augment_pic(img.copy())
+            val_out_path = os.path.join(val_out_dir, f"{label}_png.png")
+            cv2.imwrite(val_out_path, val_img)
+
+        # ------------------------
+        # remaining images → train (augment 15x)
+        # ------------------------
+        if img is not None:
+            train_out_dir = os.path.join(train_root, label)
+            os.makedirs(train_out_dir, exist_ok=True)  # create folder **here**
+    
+            for i in range(AUGMENTATIONS_PER_TRAIN):
+                aug_img = augment_pic(img.copy())
+                train_out_path = os.path.join(train_out_dir, f"aug_{i}_{filename}")
+                cv2.imwrite(train_out_path, aug_img)
+
+
+
+
+
+
+
+"""""
             out_path = os.path.join(out_dir, filename)
             try:
                 ok = cv2.imwrite(out_path, augimg)
@@ -74,7 +121,7 @@ def split_data(data_path):
                 print(f"Failed to write image: {out_path}")
             else:
                 print(f"Wrote image: {out_path}")
-
+"""
 
 
 
@@ -108,6 +155,9 @@ def augment_pic(pic):
     else:
         transformed = pic
     resized = cv2.resize(transformed, (200, 200))
+    #random flip
+    if random.random() < 0.5:
+        pic = cv2.flip(pic, 1)
     # random shift
     vertical_shift = random.randint(-40, 40)
     horizontal_shift = random.randint(-40, 40)
