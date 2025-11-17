@@ -60,7 +60,7 @@ pip install -r requirements.txt
 To verify that all dependencies installed correctly:
 
 ```bash
-python -c "import flask, torch, ultralytics, cv2; print('All dependencies installed successfully')"
+python3 -c "import flask, torch, ultralytics, cv2; print('All dependencies installed successfully')"
 ```
 
 ## Running the Application
@@ -70,7 +70,7 @@ The application consists of two components that must run in separate terminal wi
 ### Terminal 1: Start the Flask Backend API Server
 
 ```bash
-python backend/app.py
+python3 backend/app.py
 ```
 
 You should see output indicating:
@@ -84,7 +84,7 @@ The backend will remain running. Do not close this terminal.
 
 ```bash
 cd frontend
-python -m http.server 8000
+python3 -m http.server 8000
 ```
 
 You should see:
@@ -157,7 +157,7 @@ project-root/
 **Cause**: Flask backend is not running on port 5000.
 
 **Solution**:
-1. Check that Terminal 1 is running `python backend/app.py`
+1. Check that Terminal 1 is running `python3 backend/app.py`
 2. Verify output shows "Server ready!"
 3. Ensure no other application is using port 5000
 
@@ -245,7 +245,7 @@ const API_URL = 'http://localhost:5001';
 1. Stop the other application
 2. Or use an alternative port:
    ```bash
-   python -m http.server 9000
+   python3 -m http.server 9000
    ```
    Then access at `http://localhost:9000`
 
