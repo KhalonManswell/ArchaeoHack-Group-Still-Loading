@@ -25,6 +25,8 @@ hieroglyph_database = []
 gardiner_to_index = {}
 index_to_gardiner = {}
 class_names = []  # Will store the class names from YOLO model
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(BACKEND_DIR)
 
 # ===========================
 # INITIALIZATION FUNCTIONS
@@ -35,9 +37,9 @@ def load_hieroglyph_database():
     global hieroglyph_database, gardiner_to_index, index_to_gardiner
     
     try:
-        with open('../frontend/gardiner_hieroglyphs_with_unicode_hex.json', 'r', encoding='utf-8') as f:
+        json_path = os.path.join(PROJECT_ROOT, 'frontend', 'gardiner_hieroglyphs_with_unicode_hex.json')
+        with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            
         
         hieroglyph_database = [h for h in data if h.get('description') and h['description'] != ""]
         
@@ -58,12 +60,11 @@ def load_model():
     global model, class_names
     
     try:
-        # Load YOLO model - try different possible paths
         model_paths = [
-            '../model/best.pt',
-            '../model/runs/classify/1759/weights/best.pt',
-            '../model/1759/weights/best.pt',
-            'best.pt'
+            os.path.join(BACKEND_DIR, 'best.pt'),
+            os.path.join(PROJECT_ROOT, 'model', 'best.pt'),
+            os.path.join(PROJECT_ROOT, 'model', 'runs', 'classify', '1759', 'weights', 'best.pt'),
+            os.path.join(PROJECT_ROOT, 'model', '1759', 'weights', 'best.pt'),
         ]
         
         model_loaded = False

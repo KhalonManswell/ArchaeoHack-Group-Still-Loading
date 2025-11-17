@@ -159,7 +159,7 @@ function generateNewPrompt() {
         document.getElementById('promptText').textContent = 'Error: No hieroglyphs available';
         return;
     }
-}
+
     // Randomly select a hieroglyph
     const randomIndex = Math.floor(Math.random() * availableHieroglyphs.length);
     currentPrompt = availableHieroglyphs[randomIndex];
@@ -170,6 +170,8 @@ function generateNewPrompt() {
         `"${currentPrompt.description}"`;
     
     console.log(`Generated prompt: ${currentPrompt.description} (${currentPrompt.gardiner_num})`);
+}
+
 
 
 // ============================================

@@ -39,6 +39,14 @@ pip install -e .
 
 This reads the `pyproject.toml` file and installs all dependencies. No virtual environment activation is required.
 
+### Note for macOS Users
+
+If you encounter an "externally-managed-environment" error, create and activate a virtual environment:
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -e .
+
 #### Alternative: Using requirements.txt
 
 If you prefer the traditional approach:
